@@ -51,8 +51,8 @@ where
             ))
         }
     }
-    // TODO: write full struct
-    fn write(&mut self, _val: T) {
+    // TODO: persistent_write full struct
+    fn persistent_write(&mut self, _val: T) {
         unimplemented!()
     }
 }

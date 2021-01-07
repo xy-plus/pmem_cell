@@ -23,6 +23,6 @@ fn main() {
     let mut a = PMemCell::<Test1>::new();
     println!("{:#?}", a.get());
     let t1 = a.get_member("b");
-    t1.write(233);
+    t1.persistent_write(233);
     println!("{:#?}", a.get());
 }

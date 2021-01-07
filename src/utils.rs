@@ -14,7 +14,7 @@ pub trait PMemTrans {
 pub trait CrashSafe<T> {
     fn get(&mut self) -> &mut T;
     fn get_member(&mut self, name: &str) -> &mut PMemCell<u64>;
-    fn write(&mut self, val: T);
+    fn persistent_write(&mut self, val: T);
 }
 
 // TODO: use NVM to make it persistent
@@ -26,7 +26,7 @@ impl CrashSafe<u64> for PMemCell<u64> {
     fn get_member(&mut self, _name: &str) -> &mut PMemCell<u64> {
         unimplemented!()
     }
-    fn write(&mut self, val: u64) {
+    fn persistent_write(&mut self, val: u64) {
         self.0 = val;
     }
 }

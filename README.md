@@ -4,7 +4,7 @@ working...
 
 ## How to use
 
-see example.
+see example and [RFC](./崩溃一致性RFC_v1.0.md).
 
 currently, struct member only support `pm_u64` .
 
