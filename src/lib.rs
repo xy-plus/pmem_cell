@@ -4,11 +4,37 @@ use lazy_static::*;
 use spin::Mutex;
 use std::alloc::{dealloc, Layout};
 use std::collections::HashMap;
+use std::fmt::{self, Debug};
 use std::ptr;
 pub use utils::*;
 
+#[repr(C)]
+#[derive(Clone)]
 pub struct PMemCell<T> {
     addr: *mut T,
+}
+
+impl<T> fmt::Debug for PMemCell<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unsafe {
+            f.debug_struct("PMemCell")
+                .field("addr", &self.addr)
+                .field("src", &Box::leak(Box::from_raw(self.addr)))
+                .finish()
+        }
+    }
+}
+
+impl<T> Default for PMemCell<T>
+where
+    T: Default + Clone + PMemTrans,
+{
+    fn default() -> Self {
+        return Self::new();
+    }
 }
 
 impl<T> Drop for PMemCell<T> {
@@ -37,23 +63,23 @@ where
 // TODO: use NVM instead of Box
 impl<T> CrashSafe<T> for PMemCell<T>
 where
-    T: PMemTrans,
+    T: PMemTrans + Clone,
 {
     fn get(&mut self) -> &mut T {
         unsafe { Box::leak(Box::from_raw(self.addr)) }
     }
     // TODO: read member
-    fn get_member(&mut self, name: &str) -> &mut pm_u64 {
+    unsafe fn get_member(&mut self, name: &str) -> &mut pm_u64 {
         let index = T::name_to_index(name);
-        unsafe {
-            Box::leak(Box::from_raw(
-                (self.addr as *mut u64).add(index as usize) as *mut pm_u64
-            ))
-        }
+        Box::leak(Box::from_raw(
+            (self.addr as *mut u64).add(index as usize) as *mut pm_u64
+        ))
     }
     // TODO: persistent_write full struct
-    fn persistent_write(&mut self, _val: T) {
-        unimplemented!()
+    fn persistent_write(&mut self, val: &T) {
+        unsafe {
+            *Box::leak(Box::from_raw(self.addr)) = val.clone();
+        }
     }
 }
 
@@ -89,6 +115,13 @@ pub fn trans_table_name_to_index(class_name: String, member_name: &str) -> usize
         .unwrap();
 }
 
+pub fn struct_is_init(class_name: String) -> bool {
+    match __TRANS_TABLE.lock().get(&class_name) {
+        None => return false,
+        _ => return true,
+    }
+}
+
 #[macro_export]
 macro_rules! pmem_cell_def_struct {
     ($name:ident { $($member_name:ident : $member_type:ty),* }) => {
@@ -104,13 +137,23 @@ macro_rules! pmem_cell_def_struct {
                 // println!("{}", stringify!($($member_name : $member_type),*));
                 pmem_cell::new_struct_table(stringify!($name).to_string());
                 for (i, x) in stringify!($($member_name : $member_type),*).split(',').enumerate() {
-                    let x = x.split(':').next().unwrap().trim().to_string();
+                    let mut x_iter = x.split(':');
+                    let x = x_iter.next().unwrap().trim().to_string();
                     pmem_cell::trans_table_insert(stringify!($name).to_string(), x, i as usize);
+                    let x = x_iter.next().unwrap().trim().to_string();
+                    assert!(pmem_cell::utils::type_is_pmemcell(x));
                 }
             }
             fn name_to_index(name: &str) -> usize {
+                if !pmem_cell::struct_is_init(name.to_string()) {
+                    $name::init();
+                }
                 return pmem_cell::trans_table_name_to_index(stringify!($name).to_string(), name);
             }
         }
     };
+}
+
+pub unsafe fn trans_type<T>(pm_u64_: &mut pm_u64) -> &mut PMemCell<T> {
+    return &mut *(pm_u64_ as *mut pm_u64 as *mut _ as *mut PMemCell<T>); //as &mut PMemCell<T>;
 }

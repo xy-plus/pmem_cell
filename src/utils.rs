@@ -13,27 +13,38 @@ pub trait PMemTrans {
 
 pub trait CrashSafe<T> {
     fn get(&mut self) -> &mut T;
-    fn get_member(&mut self, name: &str) -> &mut PMemCell<u64>;
-    fn persistent_write(&mut self, val: T);
+    unsafe fn get_member(&mut self, name: &str) -> &mut pm_u64;
+    fn persistent_write(&mut self, val: &T);
 }
 
 // TODO: use NVM to make it persistent
 // now it is fake
-impl CrashSafe<u64> for PMemCell<u64> {
+impl CrashSafe<u64> for pm_u64 {
     fn get(&mut self) -> &mut u64 {
         return &mut self.0;
     }
-    fn get_member(&mut self, _name: &str) -> &mut PMemCell<u64> {
+    unsafe fn get_member(&mut self, _name: &str) -> &mut pm_u64 {
         unimplemented!()
     }
-    fn persistent_write(&mut self, val: u64) {
-        self.0 = val;
+    fn persistent_write(&mut self, val: &u64) {
+        self.0 = *val;
     }
 }
 
-impl PMemTrans for PMemCell<u64> {
+impl PMemTrans for pm_u64 {
     fn init() {}
     fn name_to_index(_name: &str) -> usize {
         unimplemented!()
     }
+}
+
+pub fn type_is_pmemcell(s: String) -> bool {
+    if s == "pm_u64" {
+        return true;
+    }
+    let v: Vec<_> = s.match_indices("PMemCell<").collect();
+    if v.len() == 0 {
+        return false;
+    }
+    return v[0] == (0, "PMemCell<");
 }
